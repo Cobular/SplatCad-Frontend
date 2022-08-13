@@ -16,6 +16,8 @@
     "@tauri-apps/cli": "^1.0.5",
     "@tsconfig/svelte": "^2.0.0",
     "@types/auth0-js": "^9.14.6",
+    "carbon-components-svelte": "^0.67.8",
+    "carbon-preprocess-svelte": "^0.9.1",
     "rollup": "^2.3.4",
     "rollup-plugin-css-only": "^3.1.0",
     "rollup-plugin-livereload": "^2.0.0",

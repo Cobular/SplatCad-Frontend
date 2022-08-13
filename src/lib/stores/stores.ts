@@ -1,14 +1,16 @@
 import { derived, writable } from "svelte/store";
 import { user } from "./auth";
 
-export const tasks = writable([]);
+interface Project {
+  id: number;
+  name: string;
+  description?: string;
+  createdAt: string;
+}
 
-export const user_tasks = derived([tasks, user], ([$tasks, $user]) => {
-  let logged_in_user_tasks = [];
 
-  if ($user && $user.sub) {
-    logged_in_user_tasks = $tasks.filter((task) => task.user === $user.sub);
-  }
+export const currentProjectId = writable<undefined | number>(undefined);
+export const projects = writable<>([]);
 
-  return logged_in_user_tasks;
-});
+
+export const currentProject = derived(currentProjectId, (id) => {

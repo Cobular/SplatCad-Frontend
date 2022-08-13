@@ -1,5 +1,6 @@
 import {WebAuth, Auth0Callback, Auth0DecodedHash, Auth0ParseHashError} from "auth0-js";
-import { get_store_value } from "svelte/internal";
+import { get_store_value, time_ranges_to_array } from "svelte/internal";
+import { readable, Readable } from "svelte/store";
 import { user as userStore, isAuthenticated, popupOpen } from "../stores/auth";
 
 let auth0: WebAuth;
@@ -28,6 +29,7 @@ export function logout(client: WebAuth) {
 
 export function parseHashHandler(auth0: WebAuth): Auth0Callback<Auth0DecodedHash, Auth0ParseHashError> {
   return (err: Auth0ParseHashError, authResult: Auth0DecodedHash) => {
+    authResult.expiresIn
     if (err) {
       console.error(err);
       return;
@@ -41,7 +43,8 @@ export function parseHashHandler(auth0: WebAuth): Auth0Callback<Auth0DecodedHash
           console.log(authResult.accessToken)
           userStore.set({
             sub: user.sub,
-            authToken: authResult.accessToken
+            authToken: authResult.accessToken,
+            expireTime: new Date().getTime() + authResult.expiresIn * 1000
           });
         }
       }

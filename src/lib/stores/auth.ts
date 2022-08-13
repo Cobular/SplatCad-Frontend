@@ -1,10 +1,14 @@
-import { WebAuth } from "auth0-js";
-import { writable, derived } from "svelte/store";
+import type { WebAuth } from "auth0-js";
+import { writable, derived, Readable, readable } from "svelte/store";
+import { createClient } from "../auth/auth_service";
 
 export interface User {
   sub?: string;
   authToken?: string;
+  expireTime?: number;
 }
+
+export let auth0Store: Readable<WebAuth> = readable(createClient());
 
 export const isAuthenticated = writable(false);
 export const user = writable<User>({});

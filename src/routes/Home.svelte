@@ -23,10 +23,11 @@ ToastNotification
   import {BaseDirectory } from "@tauri-apps/api/fs";
 
   let isSideNavOpen = false;
+  let value = "C:\\Users\\jdc10\\Desktop"
 
   async function invoke_thing() {
     try {
-      console.log(await invoke("get_all_data_command", {root: "C:\\Users\\jdc10\\Desktop"}));
+      console.log(await invoke("get_all_data_command", {root: value}));
     } catch (error) {
       console.log(error);
     }
@@ -69,6 +70,7 @@ ToastNotification
     <Row>
       <Column>
         <h1>Welcome</h1>
+        <input bind:value={value} />
         <Button on:click={invoke_thing}>
           Eeeee
         </Button>

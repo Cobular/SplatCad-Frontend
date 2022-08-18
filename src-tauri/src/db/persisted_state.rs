@@ -9,12 +9,14 @@ pub enum Theme {
     Dark,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct PersistedProject {
     pub id: i32,
     pub path: PathBuf,
     pub name: String,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct PersistedState {
   pub theme: Theme,
   pub projects: Vec<PersistedProject>,
@@ -33,10 +35,13 @@ impl PersistedStateManager {
   }
 
   pub fn get_all(&self) -> Result<PersistedState, Error> {
-    Ok(self.nonvolatile_state.get()?)
+    // self.nonvolatile_state.
+    // Ok(self.nonvolatile_state.get().ok_or(Error::PersistedStateError("State not found".to_string()))?)
+    todo!()
   }
 
   pub fn set_theme(self, theme: Theme) {
-    self.nonvolatile_state.set("theme", theme);
+    // self.nonvolatile_state.set("theme", theme);
+    todo!()
   }
 }

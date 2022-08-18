@@ -9,6 +9,10 @@ default-run = "app"
 edition = "2021"
 rust-version = "1.57"
 
+[lib]
+name = "mylib"
+path = "src/lib.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
@@ -20,6 +24,17 @@ serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.0.5", features = ["api-all"] }
 nonvolatile = "0.8.3"
 generic_error = "0.2.0"
+chrono = { version = "0.4.22", features = ["serde"] }
+walkdir = "2"
+ring = "0.16.20"
+data-encoding = "2.3.2"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "file_hash_bench"
+harness = false
 
 [features]
 # by default Tauri runs in production mode

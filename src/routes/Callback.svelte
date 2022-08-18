@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import { createClient, parseHashHandler } from "../lib/auth/auth_service";
+  import { createClient } from "../lib/auth/auth_client";
+  import { parseHashHandler } from "../lib/auth/auth_helpers";
   import type { WebAuth } from "auth0-js";
   import { push } from "svelte-spa-router";
   import { isAuthenticated, user as userStore } from "../lib/stores/auth";
@@ -10,7 +11,7 @@
   console.log("Loaded Callback page")
 
   onMount(() => {
-    const auth0: WebAuth = createClient();
+    const auth0: WebAuth = new ClientCreator().instance;
 
     auth0.parseHash(parseHashHandler(auth0));
     push('#/')

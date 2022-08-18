@@ -1,23 +1,5 @@
-import {WebAuth, Auth0Callback, Auth0DecodedHash, Auth0ParseHashError} from "auth0-js";
-import { get_store_value, time_ranges_to_array } from "svelte/internal";
-import { readable, Readable } from "svelte/store";
-import { user as userStore, isAuthenticated, popupOpen } from "../stores/auth";
-
-let auth0: WebAuth;
-
-export function createClient(): WebAuth {
-  if (auth0 === undefined) {
-    auth0 = new WebAuth({
-      clientID: '3CKz6QuRKeiPk9AZh6wS5NVc9Og5KRGH',
-      domain: 'dev-kcgkylif.us.auth0.com',
-      responseType: 'token id_token',
-      audience: "https://splatcad-api.cobular.com",
-      redirectUri: window.location.origin + "/#/callback",
-      scope: 'openid profile read:self modify:self'
-    });
-  }
-  return auth0;
-}
+import type { Auth0Callback, Auth0DecodedHash, Auth0ParseHashError, WebAuth } from "auth0-js";
+import { isAuthenticated, user as userStore } from "../stores/auth";
 
 export async function loginWithPopup(client: WebAuth, options: any): Promise<void> {
   client.authorize(options);
@@ -29,7 +11,10 @@ export function logout(client: WebAuth) {
 
 export function parseHashHandler(auth0: WebAuth): Auth0Callback<Auth0DecodedHash, Auth0ParseHashError> {
   return (err: Auth0ParseHashError, authResult: Auth0DecodedHash) => {
-    authResult.expiresIn
+    if (err === null && authResult === null) {
+      return
+    }
+
     if (err) {
       console.error(err);
       return;

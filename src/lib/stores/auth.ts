@@ -1,6 +1,6 @@
 import type { WebAuth } from "auth0-js";
 import { writable, derived, Readable, readable } from "svelte/store";
-import { createClient } from "../auth/auth_service";
+import { createClient } from "../auth/auth_client";
 
 export interface User {
   sub?: string;

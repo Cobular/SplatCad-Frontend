@@ -5,7 +5,7 @@
   import Callback from "./routes/Callback.svelte";
 
   import { auth0Store } from "./lib/stores/auth";
-  import { parseHashHandler } from "./lib/auth/auth_service";
+  import { parseHashHandler } from "./lib/auth/auth_helpers";
 
   import "carbon-components-svelte/css/g90.css";
   import { onMount } from "svelte";

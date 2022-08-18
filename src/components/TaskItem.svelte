@@ -1,5 +1,5 @@
 <script>
-  import { tasks } from "../lib/stores/stores";
+  import { tasks } from "../lib/stores/projects";
   export let task = {};
 
   let isChecked;

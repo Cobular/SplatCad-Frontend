@@ -27,7 +27,7 @@ ToastNotification
 
   async function invoke_thing() {
     try {
-      console.log(await invoke("get_all_data_command", {root: value}));
+      console.log(await invoke("get_all_data", {root: value}));
     } catch (error) {
       console.log(error);
     }

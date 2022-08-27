@@ -7,11 +7,11 @@ mod commands;
 mod db;
 mod error;
 
-use crate::commands::local_files::{get_all_data, get_all_data_command};
+use crate::commands::local_files::{get_all_data};
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_all_data, get_all_data_command])
+        .invoke_handler(tauri::generate_handler![get_all_data])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

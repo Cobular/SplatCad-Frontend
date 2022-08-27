@@ -26,14 +26,13 @@ nonvolatile = "0.8.3"
 generic_error = "0.2.0"
 chrono = { version = "0.4.22", features = ["serde"] }
 walkdir = "2"
-ring = "0.16.20"
 data-encoding = "2.3.2"
-sha2 = "0.10.2"
+meowhash = "0.3.0"
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.23"
 
 [dev-dependencies]
-criterion = {version = "0.3", features = ["async_tokio"]}
+criterion = {version = "0.3", features = ["async_tokio"] }
 
 [[bench]]
 name = "file_hash_bench"
@@ -46,3 +45,6 @@ default = [ "custom-protocol" ]
 # this feature is used used for production builds where `devPath` points to the filesystem
 # DO NOT remove this
 custom-protocol = [ "tauri/custom-protocol" ]
+
+[profile.release]
+debug = true

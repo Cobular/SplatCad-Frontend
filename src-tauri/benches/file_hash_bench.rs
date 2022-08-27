@@ -5,7 +5,7 @@ use mylib::commands::local_files::get_all_data;
 
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("fib 20", |b| b.iter(|| get_all_data(black_box(PathBuf::from("/home/cobular/downloads")))));
+    c.bench_function("fib 20", |b| b.iter(|| get_all_data(black_box(PathBuf::from("/Users/cobular/Documents/GrabCAD")))));
 }
 
 criterion_group!(benches, criterion_benchmark);

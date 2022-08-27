@@ -2,11 +2,13 @@ use std::{collections::HashMap, fs::File, os::unix::prelude::MetadataExt, path::
 
 use chrono::{DateTime, Utc};
 use data_encoding::HEXUPPER;
+use futures::future::join_all;
 use ring::digest::{Context, Digest as RingDigest, SHA256};
 use serde::Serialize;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::io::{BufReader, Read};
 use tauri::async_runtime::spawn_blocking;
+use tokio::fs::read;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::error::Error;
@@ -36,32 +38,27 @@ fn sha256_digest<R: Read>(mut reader: R) -> Result<RingDigest, Error> {
 
 #[tauri::command]
 pub async fn get_all_data_command(root: PathBuf) -> Result<HashMap<PathBuf, LocalFileData>, Error> {
-    spawn_blocking(|| get_all_data(root)).await.unwrap()
+    Ok(get_all_data(root).await.unwrap())
 }
 
 #[tauri::command]
-pub fn get_all_data(root: PathBuf) -> Result<HashMap<PathBuf, LocalFileData>, Error> {
+pub async fn get_all_data(root: PathBuf) -> Result<HashMap<PathBuf, LocalFileData>, Error> {
     let mut data_map: HashMap<PathBuf, LocalFileData> = HashMap::new();
 
-    for entry in WalkDir::new(root) {
-        let entry = entry?;
+    let fs_iter = WalkDir::new(root).into_iter().filter_map(|entry| {
+        let entry = entry.ok()?;
 
-        let path = entry.path();
-        let metadata = entry.metadata()?;
-
-        if !metadata.is_file() {
-            continue;
+        if !entry.metadata().ok()?.is_file() {
+            return None;
         }
 
-        // Unsure if the second implementation is even any faster
-        // If the file is extremely large, we buffer it's loading
-        let data = if metadata.size() > 200_000_000 {
-            buffered_load(&entry)?
-        } else {
-            load(&entry)?
-        };
+        Some(load(entry))
+    });
 
-        data_map.insert(path.into(), data);
+    let hashes = join_all(fs_iter).await.into_iter().filter_map(|res| res.ok());
+
+    for data in hashes {
+        data_map.insert(data.path.clone(), data);
     }
 
     Ok(data_map)
@@ -81,11 +78,11 @@ fn buffered_load(entry: &DirEntry) -> Result<LocalFileData, Error> {
     })
 }
 
-fn load(entry: &DirEntry) -> Result<LocalFileData, Error> {
+async fn load(entry: DirEntry) -> Result<LocalFileData, Error> {
     let path = entry.path();
 
     let mut hasher = Sha256::new();
-    let bytes = std::fs::read(path)?; // Vec<u8>
+    let bytes = read(path).await?; // Vec<u8>
     hasher.update(bytes);
 
     let result = hasher.finalize();

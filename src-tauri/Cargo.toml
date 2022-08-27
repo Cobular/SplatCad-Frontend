@@ -29,9 +29,11 @@ walkdir = "2"
 ring = "0.16.20"
 data-encoding = "2.3.2"
 sha2 = "0.10.2"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3.23"
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = {version = "0.3", features = ["async_tokio"]}
 
 [[bench]]
 name = "file_hash_bench"

@@ -1,13 +1,10 @@
-use std::{collections::HashMap, fs::File, os::unix::prelude::MetadataExt, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 use chrono::{DateTime, Utc};
 use data_encoding::HEXUPPER;
-use futures::future::join_all;
-use ring::digest::{Context, Digest as RingDigest, SHA256};
+use futures::{prelude::*, stream::FuturesUnordered};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::io::{BufReader, Read};
-use tauri::async_runtime::spawn_blocking;
 use tokio::fs::read;
 use walkdir::{DirEntry, WalkDir};
 
@@ -19,21 +16,7 @@ pub struct LocalFileData {
     pub name: String,
     pub update_date: DateTime<Utc>,
     pub sha256: String,
-}
-
-fn sha256_digest<R: Read>(mut reader: R) -> Result<RingDigest, Error> {
-    let mut context = Context::new(&SHA256);
-    let mut buffer = [0; 1024];
-
-    loop {
-        let count = reader.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        context.update(&buffer[..count]);
-    }
-
-    Ok(context.finish())
+    pub size: u64,
 }
 
 #[tauri::command]
@@ -44,38 +27,35 @@ pub async fn get_all_data_command(root: PathBuf) -> Result<HashMap<PathBuf, Loca
 #[tauri::command]
 pub async fn get_all_data(root: PathBuf) -> Result<HashMap<PathBuf, LocalFileData>, Error> {
     let mut data_map: HashMap<PathBuf, LocalFileData> = HashMap::new();
+    println!("entry");
+    let mut fs_iter = WalkDir::new(root)
+        .into_iter()
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
 
-    let fs_iter = WalkDir::new(root).into_iter().filter_map(|entry| {
-        let entry = entry.ok()?;
+            if !entry.metadata().ok()?.is_file() {
+                return None;
+            }
 
-        if !entry.metadata().ok()?.is_file() {
-            return None;
-        }
+            let test = tokio::spawn(async move {load(entry).await});
 
-        Some(load(entry))
-    });
+            Some(test)
+        })
+        .collect::<FuturesUnordered<_>>();
 
-    let hashes = join_all(fs_iter).await.into_iter().filter_map(|res| res.ok());
-
-    for data in hashes {
-        data_map.insert(data.path.clone(), data);
+    while let Some(data) = fs_iter.next().await {
+        let data = data.unwrap();
+        match data {
+            Ok(data) => {
+                // println!("data: {:?}", data);
+                data_map.insert(data.path.clone(), data);
+            }
+            Err(err) => println!("{}", err),
+        };
+        println!("{}",data_map.len());
     }
 
     Ok(data_map)
-}
-
-fn buffered_load(entry: &DirEntry) -> Result<LocalFileData, Error> {
-    let path = entry.path();
-    let input = File::open(path)?;
-    let reader = BufReader::new(input);
-    let digest = sha256_digest(reader)?;
-    let sha = HEXUPPER.encode(digest.as_ref());
-    Ok(LocalFileData {
-        name: entry.file_name().to_string_lossy().to_string(),
-        path: path.into(),
-        update_date: entry.metadata()?.modified()?.into(),
-        sha256: sha,
-    })
 }
 
 async fn load(entry: DirEntry) -> Result<LocalFileData, Error> {
@@ -87,11 +67,28 @@ async fn load(entry: DirEntry) -> Result<LocalFileData, Error> {
 
     let result = hasher.finalize();
 
+    let metadata = entry.metadata()?;
+
     let sha = HEXUPPER.encode(&result);
     Ok(LocalFileData {
         name: entry.file_name().to_string_lossy().to_string(),
         path: path.into(),
-        update_date: entry.metadata()?.modified()?.into(),
+        update_date: metadata.modified()?.into(),
         sha256: sha,
+        size: metadata.len(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[tokio::test]
+    async fn test_get_all_data() {
+        println!("eeeee");
+        let root = PathBuf::from("/Users/cobular/Documents/GrabCAD");
+        let data = get_all_data(root).await.unwrap();
+        println!("{:?}", data.len());
+    }
 }

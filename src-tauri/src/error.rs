@@ -10,6 +10,7 @@ pub enum Error {
   IoError(std::io::Error),
   WalkDirError(walkdir::Error),
   PersistedStateError(String),
+  StringError(String),
 }
 
 impl From<GenericError> for Error {
@@ -36,6 +37,12 @@ impl From<walkdir::Error> for Error {
   }
 }
 
+impl From<String> for Error {
+  fn from(error: String) -> Self {
+    Error::StringError(error)
+  }
+}
+
 impl std::error::Error for Error {}
 
 impl Display for Error {
@@ -46,6 +53,7 @@ impl Display for Error {
           Error::IoError(error) => write!(f, "{}", error),
           Error::WalkDirError(error) => write!(f, "{}", error),
           Error::PersistedStateError(error) => write!(f, "{}", error),
+          Error::StringError(error) => write!(f, "{}", error),
       }
   }
 }

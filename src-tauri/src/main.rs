@@ -7,11 +7,16 @@ mod commands;
 mod db;
 mod error;
 
-use crate::commands::local_files::{get_all_data};
+use crate::commands::local_files::{get_file_diff, update_remote_state, update_local_state};
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_all_data])
+        .setup(|app| {
+            db::make_db(app.config());
+            Ok(())
+        })
+        .manage(db::get_db())
+        .invoke_handler(tauri::generate_handler![get_file_diff, update_local_state, update_remote_state])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

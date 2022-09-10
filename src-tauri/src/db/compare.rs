@@ -1,67 +1,64 @@
-use core::iter::Peekable;
-use std::path::PathBuf;
+use futures::stream::Peekable;
+use serde::de::DeserializeOwned;
+use serde_cbor::from_slice;
+use sled::Tree;
+use tauri::State;
 
-use serde::{Deserialize, Serialize};
+use crate::{error::Result, db::types::{FileDiff, TreeItem}};
 
-use crate::{commands::types::LocalFileData, error::Result};
+// There is room to later make this zero copy (Deserialize<'a> vs DeserializeOwned)
+pub fn sort_tree_keys<K, V>(tree: &Tree) -> Result<Vec<(K, V)>>
+where
+    K: DeserializeOwned + Ord + Clone,
+    V: DeserializeOwned,
+{
+    let mut decoded_keypair = tree
+        .iter()
+        .filter_map(|item| item.ok())
+        .map(|(key, value)| {
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DiffTypes {
-    RightCreate,
-    LeftCreate,
-    RightNewer,
-    LeftNewer,
+            let key_parsed: K = from_slice(&key)?;
+            let val_parsed: V = from_slice(&value)?;
+
+            Ok((key_parsed, val_parsed)) as Result<(K, V)>
+        })
+        .filter_map(|item| match item {
+            Ok(item) => Some(item),
+            Err(err) => {
+                println!("{}", err);
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    
+    decoded_keypair.sort_by_key(|key| key.0.clone());
+
+    Ok(decoded_keypair)
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub enum FileDiffData {
-    Left(LocalFileData),
-    Right(LocalFileData),
-    Both(LocalFileData, LocalFileData),
+/// Find the difference between the local file state and the HEAD file state
+/// Local is LEFT, remote is RIGHT
+pub fn compare_trees<KT, VT>(
+    left_tree_name: dyn AsRef<str>,
+    right_tree_name: dyn AsRef<str>,
+    db: State<'_, sled::Db>,
+) -> Result<Vec<FileDiff>>
+where
+    KT: DeserializeOwned + Ord + Clone,
+    VT: DeserializeOwned {
+    let left_tree = db.open_tree(left_tree_name)?;
+    let right_tree = db.open_tree(right_tree_name)?;
+
+    // Need to sort both then itterate over both, doing the <> thing
+    let sorted_local_iter = sort_tree_keys::<KT, VT>(&left_tree)?
+        .into_iter()   
+        .peekable();
+    let sorted_remote_iter = sort_tree_keys::<KT, VT>(&right_tree)?
+        .into_iter()
+        .peekable();
+
+    find_diffs(sorted_local_iter, sorted_remote_iter)
 }
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct FileDiff {
-    path: PathBuf,
-    diff_metadata: FileDiffData,
-    diff_type: DiffTypes,
-}
-
-impl FileDiff {
-    pub fn right_create(path: PathBuf, right: LocalFileData) -> Self {
-        Self {
-            path,
-            diff_metadata: FileDiffData::Right(right),
-            diff_type: DiffTypes::RightCreate,
-        }
-    }
-
-    pub fn right_newer(path: PathBuf, left: LocalFileData, right: LocalFileData) -> Self {
-        Self {
-            path,
-            diff_metadata: FileDiffData::Both(left, right),
-            diff_type: DiffTypes::RightNewer,
-        }
-    }
-
-    pub fn left_create(path: PathBuf, left: LocalFileData) -> Self {
-        Self {
-            path,
-            diff_metadata: FileDiffData::Left(left),
-            diff_type: DiffTypes::LeftCreate,
-        }
-    }
-
-    pub fn left_newer(path: PathBuf, left: LocalFileData, right: LocalFileData) -> Self {
-        Self {
-            path,
-            diff_metadata: FileDiffData::Both(left, right),
-            diff_type: DiffTypes::LeftNewer,
-        }
-    }
-}
-
-pub type TreeItem = (PathBuf, LocalFileData);
 
 pub fn find_diffs<I>(
     mut left_iter: Peekable<I>,
@@ -158,10 +155,8 @@ mod tests {
 
     use chrono::{TimeZone, Utc};
 
-    use crate::commands::{
-        file_diff::{find_diffs, FileDiff, TreeItem},
-        types::{LocalFileData, LocalFileMetadata},
-    };
+    use crate::db::{types::{TreeItem, LocalFileData, LocalFileMetadata, FileDiff, DiffTypes, FileDiffData}, compare::find_diffs};
+
 
     #[test]
     fn test_merge_no_diff() {
@@ -298,8 +293,8 @@ mod tests {
         )];
         let mut expected: Vec<FileDiff> = vec![FileDiff {
             path: PathBuf::from("/this/is/in/both"),
-            diff_type: crate::commands::file_diff::DiffTypes::RightNewer,
-            diff_metadata: crate::commands::file_diff::FileDiffData::Both(
+            diff_type: DiffTypes::RightNewer,
+            diff_metadata: FileDiffData::Both(
                 LocalFileData {
                     hash: 0,
                     name: "eee".to_owned(),

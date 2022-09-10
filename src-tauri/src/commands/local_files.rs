@@ -1,73 +1,45 @@
-use std::{collections::HashMap, path::PathBuf};
+//! Get all the information on local files. 
+//! 
+//! In general, there are methods for:
+//! 
+//! 
+//! ┌───────────────────┐                           
+//! │ LocalFileMetadata │                           
+//! │    Local State    │─────┐                     
+//! └───────────────────┘     │      ┌─────────────┐
+//!                           │      │  FileDiff   │
+//!                           ├─────▶│ Left: Local │
+//!                           │      │ Right: HEAD │
+//! ┌───────────────────┐     │      └─────────────┘
+//! │ LocalFileMetadata │     │                     
+//! │    HEAD State     │─────┤                     
+//! └───────────────────┘     │                     
+//!                           │      ┌─────────────┐
+//!                           │      │  FileDiff   │
+//!                           ├─────▶│Left: Remote │
+//!                           │      │ Right: HEAD │
+//! ┌───────────────────┐     │      └─────────────┘
+//! │ LocalFileMetadata │     │                     
+//! │   Remote State    │─────┘                     
+//! └───────────────────┘                           
 
-use chrono::{DateTime, Utc};
+use std::path::PathBuf;
+
+use chrono::{Utc};
 use futures::prelude::*;
-use serde::de::DeserializeOwned;
 use serde_cbor::{from_slice, to_vec};
-use sled::Tree;
 use tauri::State;
 use tokio::fs::read;
-use walkdir::WalkDir;
 use xxhash_rust::xxh3::xxh3_64;
 
 use crate::{
-    commands::{types::{TreeNames, LocalFileData, LocalFileMetadata}, file_diff::{find_diffs, FileDiff}},
+    db::{compare::compare_trees, types::{TreeNames, LocalFileData, FileDiff, LocalFileMetadata}, refresh_state::get_metadatas},
     error::Result,
 };
 
-pub fn get_metadatas(root: &PathBuf) -> Result<impl Iterator<Item = (PathBuf, LocalFileMetadata)>> {
-    let entries = WalkDir::new(root).into_iter().filter_map(|entry| {
-        let entry = entry.ok()?;
-        if !entry.file_type().is_file() {
-            return None;
-        }
 
-        let path = entry.path().to_path_buf();
-        let size = entry.metadata().ok()?.len();
-        let modified = entry.metadata().ok()?.modified().ok()?;
-        let modified = DateTime::from(modified);
-        let metadata = LocalFileMetadata {
-            path,
-            size,
-            modified,
-            update_time: Utc::now(),
-        };
-        Some((metadata.path.clone(), metadata))
-    });
-
-    Ok(entries)
-}
-
-// There si room to later make this zero copy (Deserialize<'a> vs DeserializeOwned)
-fn sort_tree_keys<K, V>(tree: &Tree) -> Result<Vec<(K, V)>>
-where
-    K: DeserializeOwned + Ord + Clone,
-    V: DeserializeOwned,
-{
-    let mut decoded_keypair = tree
-        .iter()
-        .filter_map(|item| item.ok())
-        .map(|(key, value)| {
-
-            let key_parsed: K = from_slice(&key)?;
-            let val_parsed: V = from_slice(&value)?;
-
-            Ok((key_parsed, val_parsed)) as Result<(K, V)>
-        })
-        .filter_map(|item| match item {
-            Ok(item) => Some(item),
-            Err(err) => {
-                println!("{}", err);
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    
-    decoded_keypair.sort_by_key(|key| key.0.clone());
-
-    Ok(decoded_keypair)
-}
-
+/// Find the difference between the local file state and the HEAD file state
+/// Local is LEFT, remote is RIGHT
 #[tauri::command]
 pub async fn get_local_to_head_diff(
     root: PathBuf,
@@ -75,21 +47,12 @@ pub async fn get_local_to_head_diff(
 ) -> Result<Vec<FileDiff>> {
     let local_tree_name =
         TreeNames::HASH_LOCAL_METDATA.to_owned() + root.to_string_lossy().as_ref();
-    let local_tree = db.open_tree(local_tree_name)?;
 
     let remote_tree_name =
         TreeNames::HASH_REMOTE_METDATA.to_owned() + root.to_string_lossy().as_ref();
-    let remote_tree = db.open_tree(remote_tree_name)?;
 
-    // Need to sort both then itterate over both, doing the <> thing
-    let sorted_local_iter = sort_tree_keys::<PathBuf, LocalFileData>(&local_tree)?
-        .into_iter()
-        .peekable();
-    let sorted_remote_iter = sort_tree_keys::<PathBuf, LocalFileData>(&remote_tree)?
-        .into_iter()
-        .peekable();
+    compare_trees(local_tree_name, remote_tree_name, db)
 
-    find_diffs(sorted_local_iter, sorted_remote_iter)
 }
 
 #[tauri::command]
@@ -114,6 +77,8 @@ pub async fn update_remote_state(
     Ok(())
 }
 
+
+/// Update local state from the state of the filesystem
 #[tauri::command]
 pub async fn update_local_state(root: PathBuf, db: State<'_, sled::Db>) -> Result<()> {
     let update_start_time = Utc::now();
